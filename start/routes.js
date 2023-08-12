@@ -19,6 +19,8 @@ const Route = use('Route')
 // AUTH
 Route.get("/generate-token", "TokenController.generate");
 Route.post("/voice", "TokenController.voice");
+Route.get("/recordings", "TokenController.recordings");
+Route.get("/recordings/:callSid", "TokenController.recording");
 Route.get("/fallback", "TokenController.fallback");
 
 Route.get('/', () => {
