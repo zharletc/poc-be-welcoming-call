@@ -22,6 +22,7 @@ Route.post("/voice", "TokenController.voice");
 Route.get("/recordings", "TokenController.recordings");
 Route.get("/recordings/:callSid", "TokenController.recording");
 Route.get("/fallback", "TokenController.fallback");
+Route.post("/recordings/callback", "TokenController.recordCallback");
 
 Route.get('/', () => {
   return { greeting: 'Hello world in JSON' }

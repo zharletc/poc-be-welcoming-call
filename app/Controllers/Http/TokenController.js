@@ -4,6 +4,7 @@ const { default: axios } = require("axios");
 const AccessToken = require("twilio/lib/jwt/AccessToken");
 const accountSid = process.env.TWILIO_ACCOUNT_SID; // Your Account SID from www.twilio.com/console
 const authToken = process.env.TWILIO_AUTH_TOKEN; // Your Auth Token from www.twilio.com/console
+const recordCallback = process.env.RECORD_CALLBACK; // Your Auth Token from www.twilio.com/console
 const VoiceGrant = AccessToken.VoiceGrant;
 
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -14,10 +15,16 @@ const twilioApiSecret = process.env.TWILIO_API_SECRET;
 const outgoingApplicationSid = process.env.TWILIO_VOICE_SERVICE_SID;
 const identity = process.env.TWILIO_EMAIL_IDENTITY;
 
+const streamToBuffer = require('stream-to-buffer');
+const FormData = require('form-data');
+
+// const Drive = use('Drive')
+const Helpers = use('Helpers')
 const client = require("twilio")(accountSid, authToken);
 
 class TokenController {
   async generate() {
+    console.log(Helpers.tmpPath());
     const voiceGrant = new VoiceGrant({
       outgoingApplicationSid: outgoingApplicationSid,
       incomingAllow: true, // Optional: add to allow incoming calls
@@ -45,7 +52,7 @@ class TokenController {
         dial.client(toNumberOrClientName);
       } else if (request.body.To) {
         // DOCS https://www.twilio.com/docs/voice/twiml/dial#record
-        let dial = twiml.dial({ callerId, record: 'record-from-ringing-dual', recordingStatusCallback: 'https://webhook.site/25ab7a76-bf66-4761-9255-768b98845ddd' });
+        let dial = twiml.dial({ callerId, record: 'record-from-ringing-dual', recordingStatusCallback: recordCallback });
         const attr = await this.isAValidPhoneNumber(toNumberOrClientName)
           ? "number"
           : "client";
@@ -98,6 +105,48 @@ class TokenController {
     };
   }
 
+  async recordCallback({ request }) {
+    try {
+      const recordingUrl = request.input('RecordingUrl');
+      const CallSid = request.input('CallSid');
+      const destination = 'file_record.wav';
+
+      const response = await axios({
+        method: 'get',
+        url: recordingUrl,
+        responseType: 'stream'
+      });
+
+      const bufferData = await new Promise((resolve, reject) => {
+        streamToBuffer(response.data, (error, buffer) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(buffer);
+          }
+        });
+      });
+
+      const call = await client.calls.list({ parentCallSid: CallSid }).then((calls) => {
+        if (calls && calls.length > 0) {
+          return calls[0]
+        }
+      })
+
+      console.log("DETAIL CALL " , call);
+      const form = new FormData();
+      const title = CallSid.substring(0, 10) + "_" + call.to.replace(/\+/g, '');
+      form.append('title', title);
+      form.append('audio_file', bufferData, "file_record.wav");
+      console.log(form);
+      const uploadResponse = await axios.post("http://wc.staging.endavolabs.com:8000/api/speech", form);
+      console.log('File downloaded and uploaded:', uploadResponse);
+    } catch (error) {
+      console.error('Error while processing:', error);
+      return { message: 'Error processing the recording' };
+    }
+  }
+
   async recording({ request }) {
     const callSid = request.params.callSid
 
@@ -106,6 +155,7 @@ class TokenController {
         return calls[0]
       }
     })
+
     const recording = await client.recordings.list({ callSid: callSid }).then((recordings) => {
       if (recordings && recordings.length > 0) {
         return recordings[0]
