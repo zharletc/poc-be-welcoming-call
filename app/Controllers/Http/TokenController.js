@@ -82,19 +82,30 @@ class TokenController {
   }
 
   async recordings({ request }) {
-    const list = await client.recordings.list({ limit: 20 }).then((recordings) => {
-      return recordings
+    const calls = await client.calls.list({ limit: 20 }).then((calls) => {
+      return calls
     })
+
+    // console.log(calls);
+    // const list = await client.recordings.list({ limit: 20 }).then((recordings) => {
+    //   return recordings
+    // })
 
     return {
       success: 1,
       message: "success",
-      data: list
+      data: calls
     };
   }
 
   async recording({ request }) {
     const callSid = request.params.callSid
+
+    const call = await client.calls.list({ parentCallSid: callSid }).then((calls) => {
+      if (calls && calls.length > 0) {
+        return calls[0]
+      }
+    })
     const recording = await client.recordings.list({ callSid: callSid }).then((recordings) => {
       if (recordings && recordings.length > 0) {
         return recordings[0]
@@ -151,6 +162,7 @@ class TokenController {
       success: 1,
       message: "success",
       data: {
+        call: call,
         recording: recording,
         transcript: transcript,
         sentences: fixSenctences,
